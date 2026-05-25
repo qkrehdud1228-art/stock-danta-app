@@ -92,25 +92,42 @@ def run_analysis():
 
     st.write("📡 상장 종목 리스트와 매칭 중...")
 
-    df_kospi_listing = fdr.StockListing("KOSPI")
-    df_kosdaq_listing = fdr.StockListing("KOSDAQ")
+    # Streamlit Cloud에서는 FinanceDataReader 상장리스트가 실패할 수 있어서
+    # 네이버 데이터 기준으로 ETF/ETN/우선주/스팩을 제외합니다.
 
-    df_listing = pd.concat(
-        [df_kospi_listing, df_kosdaq_listing],
-        ignore_index=True
-    )
+    df = df_naver.copy()
 
-    df_listing = df_listing[["Code", "Name", "Market"]].drop_duplicates()
+    # 시장명 정리
+    if "구분" in df.columns:
+        df["Market"] = df["구분"]
+    else:
+        df["Market"] = ""
 
-    df = pd.merge(
-        df_naver,
-        df_listing,
-        left_on="종목명",
-        right_on="Name",
-        how="inner"
-    )
+    # 종목코드는 네이버 거래대금 페이지에는 없으므로 임시로 빈 값 처리
+    # 나중에 종목코드가 꼭 필요하면 별도 방식으로 추가 가능
+    df["Code"] = ""
 
-    df = df.drop_duplicates(subset=["Code"]).reset_index(drop=True)
+    exclude_keywords = [
+        "ETF", "ETN", "KODEX", "TIGER", "ACE", "SOL", "KBSTAR",
+        "HANARO", "RISE", "KOSEF", "ARIRANG", "TIMEFOLIO",
+        "PLUS", "FOCUS", "TREX", "마이티", "히어로즈",
+        "레버리지", "인버스", "선물", "TR", "인덱스",
+        "스팩", "기업인수목적",
+        "우", "우B"
+    ]
+
+    def is_excluded_name(name):
+        name = str(name)
+
+        for keyword in exclude_keywords:
+            if keyword in name:
+                return True
+
+        return False
+
+    df = df[~df["종목명"].apply(is_excluded_name)].copy()
+
+    df = df.drop_duplicates(subset=["종목명"]).reset_index(drop=True)
 
     st.write(f"ETF/ETN/기타 제거 후:run_analysis() {len(df)}개")
 
